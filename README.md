@@ -1,12 +1,12 @@
 # NOC Bot Redaman & Dashboard 🚀
 
-Sistem pemantau redaman pelanggan (Optical Power RX) dari OLT (HSGQ & VSOL & GGCLINK). Mengirimkan notifikasi peringatan (*CRITICAL* & *WARNING*) secara real-time ke NOC via Telegram. Dilengkapi Web Dashboard interaktif.
+Sistem pemantau redaman pelanggan (Optical Power RX) dari OLT (HSGQ, VSOL, & GGCLINK). Mengirimkan notifikasi peringatan (*CRITICAL* & *WARNING*) secara real-time ke NOC via Telegram. Dilengkapi Web Dashboard interaktif.
 
 ---
 
 ## ⚡ Instalasi Sangat Mudah (Plug-and-Play)
 
-Sistem ini didesain agar sangat ramah pemula. Anda **TIDAK PERLU** melakukan pengaturan database atau service secara manual. Cukup jalankan *Installer* otomatis yang sudah kami sediakan!
+Sistem ini didesain agar sangat ramah pemula. Anda **TIDAK PERLU** melakukan pengaturan database atau pemrograman secara manual. Cukup jalankan *Installer Wizard* otomatis yang sudah kami sediakan!
 
 ### Langkah 1: Clone Repository ke VPS
 Buka terminal VPS Anda (Ubuntu/Debian), lalu jalankan perintah ini untuk mengunduh seluruh sistem:
@@ -21,25 +21,41 @@ Di dalam folder tersebut, jalankan file instalasi:
 bash noc-bot-installer.sh
 ```
 
-**Selesai!** Anda hanya tinggal duduk manis. 
-Terminal akan memunculkan *Wizard* interaktif untuk meminta:
-1. **Telegram Token & Chat ID**
-2. **Mikrotik IP & Credentials**
+**Selesai!** Anda hanya tinggal duduk manis dan menjawab pertanyaan di layar.
 
-Setelah Anda mengisi data tersebut, script akan bekerja otomatis 100%:
-- Menginstal Python & Node.js.
-- Membuat database SQLite dan mendaftarkan OLT default.
-- Menjalankan `collector.py` dan `telegram_bot.py` sebagai layanan background (*Systemd*).
+---
+
+## 🪄 Apa saja yang ditanyakan oleh Wizard?
+
+Saat *installer* berjalan, layar terminal akan meminta Anda memasukkan data berikut:
+
+1. **Telegram Token & Chat ID**: Digunakan agar bot bisa mengirimkan notifikasi langsung ke grup NOC Anda.
+2. **Kredensial Mikrotik (IP Publik/VPN)**: Digunakan agar sistem bisa melacak otomatis ID Pelanggan PPPoE. *Gunakan IP Publik VPS Mikrotik Anda*.
+3. **Konfigurasi OLT (Interactive Loop)**: Anda bisa menambahkan OLT satu per satu (contoh: `OLT-Pusat`, IP: `103.X.X.X:161`, Merk: `VSOL`). Jika OLT Anda ada 4, Anda bisa memasukkannya berturut-turut. Jika sudah selesai, cukup kosongkan namanya lalu tekan `ENTER`.
+
+> [!TIP]
+> **Otomatisasi Cerdas Berdasarkan Merk!**
+> Sistem NOC ini sangat canggih. Jika Anda memasukkan Merk OLT `HSGQ` atau `VSOL`, sistem akan menggunakan protokol **SNMP (UDP 161)**. 
+> Namun, jika Anda memasukkan Merk `GGCLINK`, sistem otomatis mengabaikan SNMP dan akan menembak data melalui **Jalur Belakang (HTTP Web API)** berapapun port web-nya (misal: 80, 8001, atau 8002).
+
+---
+
+## ⚙️ Apa yang terjadi di balik layar?
+
+Setelah Anda mengisi *wizard* di atas, script akan bekerja otomatis 100%:
+- Menginstal Python, Node.js, dan semua library yang dibutuhkan.
+- Membuat database SQLite dan mendaftarkan semua OLT Anda.
+- Menjalankan `collector.py` (Mesin Penarik Data) dan `telegram_bot.py` sebagai layanan background (*Systemd*) yang tahan banting (hidup otomatis saat restart).
 - Menjalankan Dashboard Web menggunakan `pm2`.
-- Membuka port 8000 di Firewall iptables.
+- Membuka port `8000` di Firewall *iptables*.
 
-Di akhir proses, Anda akan mendapatkan URL cantik untuk mengakses Dashboard Web Anda!
+Di akhir proses, layar akan menampilkan URL cantik untuk mengakses Dashboard Web Anda di browser!
 
 ---
 
 ## 🛠️ Perintah Pengendalian Layanan di VPS
 
-Semua layanan diatur agar otomatis menyala kembali jika VPS reboot/mati lampu.
+Semua layanan diatur agar otomatis menyala kembali jika VPS reboot/mati lampu. Jika sewaktu-waktu Anda perlu merestart manual:
 
 ### 🖥️ Dashboard Web (PM2)
 * **Cek status**: `pm2 status`
