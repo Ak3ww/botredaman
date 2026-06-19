@@ -1,0 +1,26 @@
+# Dependency directories
+node_modules/
+venv/
+__pycache__/
+*.pyc
+
+# Database dan Log (JANGAN DIUPLOAD)
+*.db
+*.log
+redaman.db
+system.log
+
+# Konfigurasi Sensitif (Rahasia)
+config.json
+.env
+
+# Build outputs
+dist/
+build/
+.next/
+
+# IDE files
+.vscode/
+.idea/
+*db-wal
+*db-shm

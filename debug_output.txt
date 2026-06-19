@@ -1,0 +1,83 @@
+Traceback (most recent call last):
+  File "C:\BotRedaman\backend\collector.py", line 778, in pull_data_and_alert
+    cursor.execute(
+sqlite3.OperationalError: database is locked
+Traceback (most recent call last):
+  File "C:\BotRedaman\backend\collector.py", line 778, in pull_data_and_alert
+    cursor.execute(
+sqlite3.OperationalError: database is locked
+Traceback (most recent call last):
+  File "C:\BotRedaman\backend\collector.py", line 778, in pull_data_and_alert
+    cursor.execute(
+sqlite3.OperationalError: database is locked
+Traceback (most recent call last):
+  File "C:\BotRedaman\backend\collector.py", line 778, in pull_data_and_alert
+    cursor.execute(
+sqlite3.OperationalError: database is locked
+Traceback (most recent call last):
+  File "C:\BotRedaman\backend\collector.py", line 778, in pull_data_and_alert
+    cursor.execute(
+sqlite3.OperationalError: database is locked
+Traceback (most recent call last):
+  File "C:\BotRedaman\backend\collector.py", line 778, in pull_data_and_alert
+    cursor.execute(
+sqlite3.OperationalError: database is locked
+Traceback (most recent call last):
+  File "C:\BotRedaman\backend\collector.py", line 778, in pull_data_and_alert
+    cursor.execute(
+sqlite3.OperationalError: database is locked
+Traceback (most recent call last):
+  File "C:\BotRedaman\backend\collector.py", line 778, in pull_data_and_alert
+    cursor.execute(
+sqlite3.OperationalError: database is locked
+Traceback (most recent call last):
+  File "C:\BotRedaman\backend\collector.py", line 778, in pull_data_and_alert
+    cursor.execute(
+sqlite3.OperationalError: database is locked
+Traceback (most recent call last):
+  File "C:\BotRedaman\backend\collector.py", line 778, in pull_data_and_alert
+    cursor.execute(
+sqlite3.OperationalError: database is locked
+Traceback (most recent call last):
+  File "C:\BotRedaman\backend\test_collector.py", line 4, in <module>
+    pull_data_and_alert()
+  File "C:\BotRedaman\backend\collector.py", line 809, in pull_data_and_alert
+    prune_old_attenuations(conn)
+  File "C:\BotRedaman\backend\collector.py", line 154, in prune_old_attenuations
+    c.execute("""DELETE FROM attenuations
+sqlite3.OperationalError: database is locked
+
+[2026-06-13 15:19:40] Memulai penarikan data SNMP...
+  [HSGQ-G02ID] Data diterima dari SNMP.
+  [SNMP Walk Error] No SNMP response received before timeout
+  [SNMP Walk Error] No SNMP response received before timeout
+  [SNMP Walk Error] No SNMP response received before timeout
+  [VSOL-GPON] Data diterima dari SNMP.
+  [Error] ONU 1.26: database is locked
+  [Error] ONU 1.52: database is locked
+  [Error] ONU 1.1: database is locked
+  [Error] ONU 1.2: database is locked
+  [Error] ONU 1.3: database is locked
+  [Error] ONU 1.4: database is locked
+  [Error] ONU 1.5: database is locked
+  [Error] ONU 1.6: database is locked
+  [Error] ONU 1.7: database is locked
+  [Error] ONU 1.8: database is locked
+  [Cache Sync] Menyinkronkan nama/SN/firmware untuk OLT 3...
+  [SNMP Walk Error] No SNMP response received before timeout
+  [Cache Sync] Gagal walk nama. Cache lama dipertahankan.
+  [SNMP Walk Error] No SNMP response received before timeout
+  [SNMP Walk Error] No SNMP response received before timeout
+  [SNMP Walk Error] No SNMP response received before timeout
+  [SNMP Walk Error] No SNMP response received before timeout
+  [SNMP Walk Error] No SNMP response received before timeout
+  ⚠️  Gagal menarik data dari GGCLINK-01. Siklus ini dilewati.
+  [Cache Sync] Menyinkronkan nama/SN/firmware untuk OLT 4...
+  [SNMP Walk Error] No SNMP response received before timeout
+  [Cache Sync] Gagal walk nama. Cache lama dipertahankan.
+  [SNMP Walk Error] No SNMP response received before timeout
+  [SNMP Walk Error] No SNMP response received before timeout
+  [SNMP Walk Error] No SNMP response received before timeout
+  [SNMP Walk Error] No SNMP response received before timeout
+  [SNMP Walk Error] No SNMP response received before timeout
+  ⚠️  Gagal menarik data dari GGCLINK-02. Siklus ini dilewati.

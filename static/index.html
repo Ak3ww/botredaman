@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NOC Dashboard - Redaman OLT</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar / Header -->
+        <header class="glass-panel header">
+            <div class="logo">
+                <span class="pulse"></span>
+                <h1>NOC <span class="highlight">Vision</span></h1>
+            </div>
+            <p class="subtitle">Optical Power Monitoring System</p>
+            <div class="stats">
+                <div class="stat-box">
+                    <span class="label">Total OLT</span>
+                    <h2 id="total-olt">0</h2>
+                </div>
+                <div class="stat-box warning-box">
+                    <span class="label">Critical Loss (<-27 dBm)</span>
+                    <h2 id="critical-count" class="danger-text">0</h2>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="glass-panel data-panel">
+                <div class="panel-header">
+                    <h2>Live Attenuation Data</h2>
+                    <div style="display: flex; gap: 1rem;">
+                        <input type="text" id="search-input" class="search-input" placeholder="Cari Nama Pelanggan...">
+                        <button id="refresh-btn" class="btn-modern">Refresh Data</button>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table class="modern-table">
+                        <thead>
+                            <tr>
+                                <th>OLT Name</th>
+                                <th>PON Port</th>
+                                <th>ONU ID</th>
+                                <th>Customer Name</th>
+                                <th>Rx Power (dBm)</th>
+                                <th>Tx Power (dBm)</th>
+                                <th>Last Updated</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="data-body">
+                            <!-- Data will be injected here via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="/static/script.js"></script>
+</body>
+</html>
