@@ -2,6 +2,9 @@ const express = require('express');
 const cors    = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const path    = require('path');
+const fs      = require('fs');
+const https   = require('https');
+const { RouterOSClient } = require('routeros-client');
 
 const app    = express();
 const PORT   = process.env.PORT || 8000;
@@ -9,9 +12,21 @@ const DB_FILE = path.join(__dirname, 'redaman.db');
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Baca konfigurasi untuk Telegram Webhook
+let configData = {};
+try {
+    const cfgPath = path.join(__dirname, 'config.json');
+    configData = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+} catch (e) {
+    console.error('Gagal membaca config.json untuk webhook:', e.message);
+}
+
+
 
 // Serve static assets dari Vite React production build
-const distPath = path.join(__dirname, 'dist');
+const distPath = path.join(__dirname, '..', 'frontend', 'dist');
 app.use(express.static(distPath));
 
 // Buka DB dalam mode READ-ONLY + WAL-compatible
@@ -155,11 +170,145 @@ app.get('/api/onu_detail', (req, res) => {
     });
 });
 
+// ── GET /api/stats/traffic ────────────────────────────────────────────────
+// Mengembalikan data traffic hari ini dan Top 10 spenders 7 hari terakhir.
+app.get('/api/stats/traffic', (req, res) => {
+    const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD
+    
+    const sqlToday = `
+        SELECT 
+            COALESCE(SUM(download_bytes), 0) as total_download, 
+            COALESCE(SUM(upload_bytes), 0) as total_upload 
+        FROM daily_traffic 
+        WHERE date = ?`;
+        
+    const sqlTop = `
+        SELECT 
+            t.pppoe_username, 
+            COALESCE(c.customer_name, t.pppoe_username) as customer_name,
+            SUM(t.download_bytes) as total_download, 
+            SUM(t.upload_bytes) as total_upload 
+        FROM daily_traffic t
+        LEFT JOIN onu_name_cache c ON t.onu_id = c.onu_id AND t.olt_id = c.olt_id
+        WHERE t.date >= date('now', '-7 days', 'localtime')
+        GROUP BY t.olt_id, t.onu_id
+        ORDER BY total_download DESC LIMIT 10`;
+
+    db.get(sqlToday, [today], (err, rowToday) => {
+        if (err) return res.status(500).json({ error: err.message });
+        
+        db.all(sqlTop, [], (err, rowsTop) => {
+            if (err) return res.status(500).json({ error: err.message });
+            
+            res.json({
+                today: rowToday || { total_download: 0, total_upload: 0 },
+                top_spenders: rowsTop
+            });
+        });
+    });
+});
+
+// ── GET /api/stats/flapping ────────────────────────────────────────────────
+// Mengembalikan daftar pelanggan yang sering disconnect (flapping) dalam 24 jam terakhir.
+app.get('/api/stats/flapping', (req, res) => {
+    const sql = `
+        SELECT 
+            t.olt_id, t.onu_id, 
+            COALESCE(t.customer_name, 'Tanpa Nama') as customer_name, 
+            t.pppoe_username,
+            SUM(CASE WHEN t.event_type = 'DISCONNECT' THEN 1 ELSE 0 END) as disconnect_count,
+            o.name as olt_name
+        FROM connection_events t
+        LEFT JOIN olts o ON t.olt_id = o.id
+        WHERE t.timestamp >= datetime('now', '-24 hours', 'localtime')
+        GROUP BY t.olt_id, t.onu_id
+        HAVING disconnect_count > 0
+        ORDER BY disconnect_count DESC LIMIT 20`;
+
+    db.all(sql, [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+// ── GET /api/stats/events ──────────────────────────────────────────────────
+// Mengembalikan 50 log event koneksi terbaru.
+app.get('/api/stats/events', (req, res) => {
+    const sql = `
+        SELECT 
+            e.id, e.olt_id, e.onu_id, 
+            COALESCE(e.customer_name, 'Tanpa Nama') as customer_name, 
+            e.pppoe_username, e.event_type, e.reason, e.rx_power, e.timestamp,
+            o.name as olt_name
+        FROM connection_events e
+        LEFT JOIN olts o ON e.olt_id = o.id
+        ORDER BY e.timestamp DESC LIMIT 50`;
+
+    db.all(sql, [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+
+
+// ── GET /api/mikrotik/non-active ─────────────────────────────────────────
+app.get('/api/mikrotik/non-active', async (req, res) => {
+    try {
+        const client = new RouterOSClient({
+            host: '103.157.79.178',
+            user: 'billinghub.id',
+            password: '@eugine0909@',
+            port: 8520,
+            keepalive: true
+        });
+
+        const conn = await client.connect();
+        
+        // Get all PPP secrets
+        const secretsMenu = conn.menu('/ppp/secret');
+        const secrets = await secretsMenu.get();
+        
+        // Get active PPP connections
+        const activeMenu = conn.menu('/ppp/active');
+        const active = await activeMenu.get();
+        
+        client.close();
+        
+        // Create a set of active usernames
+        const activeUsers = new Set(active.map(a => a.name));
+        
+        // Find secrets that are not in active connections
+        const nonActive = secrets.filter(s => !activeUsers.has(s.name));
+        
+        res.json({
+            total_secrets: secrets.length,
+            total_active: active.length,
+            total_non_active: nonActive.length,
+            non_active_list: nonActive.map(s => ({
+                id: s['.id'],
+                name: s.name,
+                service: s.service,
+                profile: s.profile,
+                last_logged_out: s['last-logged-out'] || '-',
+                last_caller_id: s['last-caller-id'] || '-',
+                last_disconnect_reason: s['last-disconnect-reason'] || '-',
+                comment: s.comment || '-',
+                disabled: s.disabled === 'true'
+            }))
+        });
+    } catch (err) {
+        console.error('Mikrotik API Error:', err);
+        res.status(500).json({ error: 'Gagal terhubung ke Mikrotik API: ' + err.message        });
+    }
+});
+
 // ── SPA fallback ───────────────────────────────────────────────────────────
-app.get('*any', (req, res) => {
+// All other requests -> Vite index.html
+app.get(/(.*)/, (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Dashboard server berjalan di http://0.0.0.0:${PORT}`);
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
