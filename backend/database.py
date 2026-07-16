@@ -46,6 +46,10 @@ def init_db():
             customer_name TEXT,
             status TEXT NOT NULL,
             last_alert_time DATETIME,
+            last_offline_reason TEXT,
+            last_up_time DATETIME,
+            last_down_time DATETIME,
+            alive_time TEXT,
             FOREIGN KEY(olt_id) REFERENCES olts(id)
         )
     ''')
@@ -56,6 +60,8 @@ def init_db():
             onu_id TEXT NOT NULL,
             olt_id INTEGER NOT NULL,
             customer_name TEXT,
+            sn TEXT,
+            firmware_version TEXT,
             last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (onu_id, olt_id),
             FOREIGN KEY(olt_id) REFERENCES olts(id)
