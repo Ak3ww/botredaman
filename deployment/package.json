@@ -1,14 +1,19 @@
 {
-  "name": "noc-redaman-dashboard",
+  "name": "backend",
   "version": "1.0.0",
-  "description": "NOC Redaman Dashboard Server",
-  "main": "server.js",
+  "description": "",
+  "main": "index.js",
   "scripts": {
-    "start": "node server.js"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
   "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.19.2",
-    "sqlite3": "^5.1.7"
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "routeros-client": "^1.1.1",
+    "sqlite3": "^6.0.1"
   }
 }
