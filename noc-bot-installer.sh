@@ -51,7 +51,7 @@ echo -e "${GREEN}✔ Semua konfigurasi berhasil di-set secara otomatis.${NC}"
 # 3. Ekstrak Embedded Payload
 echo -e "\n${BLUE}[3/8] Mengekstrak file aplikasi NOC Redaman...${NC}"
 cat << 'EOF' | base64 -d | tar -xzf -
-H4sIAMFKWGoC/+y923IjR5IoqGea6R9C0JGQaIFJALyV0EKpUSSrii3ehkBJ3cvmgRJAksxCIgFl
+H4sIAN5NWGoC/+y923IjR5IoqGea6R9C0JGQaIFJALyV0EKpUSSrii3ehkBJ3cvmgRJAksxCIgFl
 JorkUDCbhzNjNrs9Ozsz2n0YO7O9PXbWbM32vKzt2LHd39EP7HzCuntEZEbkDWBd1FWtgi4EMuMe
 7h7uHn4x18y1X51YN09ta2j7H7yRT41/8v7Wausb8Xd8Xq816o0P2M0HP8FnFoSWD91/8PP8NB6w
 ceiM7VZ9+8FGfbtef7Bt1mrbnzc211c+eP/5s/8MJq5rD8KJb05v31QfiNRbW1vZ+F9fb2w3Gh/U
@@ -10723,7 +10723,7 @@ if [ -f "requirements.txt" ]; then
     echo -e "${GREEN}✔ Library Python berhasil diinstal.${NC}"
 else
     echo -e "${RED}⚠ requirements.txt tidak ditemukan. Menginstal manual...${NC}"
-    pip install pysnmp>=4.4.12 requests>=2.25.1 pyTelegramBotAPI>=4.0.0
+    pip install pysnmp==4.4.12 requests>=2.25.1 pyTelegramBotAPI>=4.0.0
 fi
 
 # 6a. Auto Seed Database (Default OLTs)

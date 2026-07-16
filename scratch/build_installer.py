@@ -142,7 +142,7 @@ if [ -f "requirements.txt" ]; then
     echo -e "${GREEN}✔ Library Python berhasil diinstal.${NC}"
 else
     echo -e "${RED}⚠ requirements.txt tidak ditemukan. Menginstal manual...${NC}"
-    pip install pysnmp>=4.4.12 requests>=2.25.1 pyTelegramBotAPI>=4.0.0
+    pip install pysnmp==4.4.12 requests>=2.25.1 pyTelegramBotAPI>=4.0.0
 fi
 
 # 6a. Auto Seed Database (Default OLTs)
