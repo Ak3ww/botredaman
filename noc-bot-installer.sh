@@ -43,15 +43,15 @@ DASH_DOMAIN="noc.euginemediagroup.com"
 DASH_URL="https://${DASH_DOMAIN}"
 BULK_MIN="10"
 MK_HOST="103.157.79.178"
-MK_USER="euginemediagroup"
-MK_PASS="@eugine0909@"
+MK_USER="billinghub.id"
+MK_PASS="@euginemedia0909@"
 
 echo -e "${GREEN}✔ Semua konfigurasi berhasil di-set secara otomatis.${NC}"
 
 # 3. Ekstrak Embedded Payload
 echo -e "\n${BLUE}[3/8] Mengekstrak file aplikasi NOC Redaman...${NC}"
 cat << 'EOF' | base64 -d | tar -xzf -
-H4sIAOVAWGoC/+y923IjR5IoqGea6R9C0JGQ2QKTAHirQgulRpGsKrZ4GwKl7l42D5QAkmQWEhdl
+H4sIAAxBWGoC/+y923IjR5IoqGea6R9C0JGQ2QKTAHirQgulRpGsKrZ4GwKl7l42D5QAkmQWEhdl
 JorkUDCbhzNjNrs9Ozsz2n0YO7O9PXbWbM32vKzt2LHd39EP7HzCuntEZEbkDWBdJFWroAuBzLiH
 u4e7h1+sNWvtVyf2zTPHHjj+B2/lU+WfvL/V6vpG/B2f16r1Wv0DdvPBD/CZBaHtQ/cf/Dw/9Qds
 FLojp1nbfrBR23pQ3d60qtsPHm4+2F754P3nz/7Tn3ie0w8nvjW9fVt9IFJvbW1l439tfb26vvVB
