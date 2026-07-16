@@ -321,7 +321,7 @@ def handle_command(chat_id, text, message_id=None):
             critical_count = conn.execute("SELECT COUNT(*) FROM alert_states WHERE status='CRITICAL'").fetchone()[0]
             warning_count  = conn.execute("SELECT COUNT(*) FROM alert_states WHERE status='WARNING'").fetchone()[0]
             normal_count   = conn.execute("SELECT COUNT(*) FROM alert_states WHERE status='NORMAL'").fetchone()[0]
-            total_onu      = conn.execute("SELECT COUNT(DISTINCT onu_id) FROM attenuations").fetchone()[0]
+            total_onu      = conn.execute("SELECT COUNT(*) FROM alert_states").fetchone()[0]
 
             reminder_min = get_reminder_minutes()
         finally:
