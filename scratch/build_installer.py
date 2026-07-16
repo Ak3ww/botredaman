@@ -12,6 +12,7 @@ files_to_include = [
     "telegram_bot.py",
     "server.js",
     "database.py",
+    "mikrotik_client.py",
     "package.json",
     "requirements.txt",
     "dist"
