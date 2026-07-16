@@ -85,8 +85,9 @@ TELE_TOKEN=${TELE_TOKEN:-"8773632704:AAFschVyWAyGIwGyjU5mwt1xDlMs3I-NqGc"}
 read -p "Masukkan Telegram Chat ID [298223450]: " TELE_CHAT_ID < /dev/tty
 TELE_CHAT_ID=${TELE_CHAT_ID:-"298223450"}
 
-read -p "Masukkan Dashboard URL [http://${PUBLIC_IP}:8000]: " DASH_URL < /dev/tty
-DASH_URL=${DASH_URL:-"http://${PUBLIC_IP}:8000"}
+read -p "Masukkan Domain Dashboard [noc.euginemediagroup.com]: " DASH_DOMAIN < /dev/tty
+DASH_DOMAIN=${DASH_DOMAIN:-"noc.euginemediagroup.com"}
+DASH_URL="https://${DASH_DOMAIN}"
 
 read -p "Masukkan Interval Bulk Reminder (menit) [10]: " BULK_MIN < /dev/tty
 BULK_MIN=${BULK_MIN:-"10"}
@@ -174,10 +175,9 @@ conn.execute('''CREATE TABLE IF NOT EXISTS olts (
 )''')
 if conn.execute('SELECT count(*) FROM olts').fetchone()[0] == 0:
     conn.executemany('INSERT INTO olts (name, ip_port, brand, community) VALUES (?,?,?,?)', [
-        ('GGCLINK-01', '192.168.30.3:8001', 'GGCLINK', 'public'),
-        ('GGCLINK-02', '192.168.30.5:8002', 'GGCLINK', 'public'),
         ('HSGQ-G02ID', '192.168.30.4:161', 'HSGQ', 'public'),
-        ('VSOL-GPON', '192.168.30.6:161', 'VSOL', 'public')
+        ('VSOL-GPON-1', '192.168.30.6:161', 'VSOL', 'public'),
+        ('VSOL-GPON-2', '192.168.30.7:161', 'VSOL', 'public')
     ])
 conn.commit()
 conn.close()
@@ -268,6 +268,35 @@ pm2 save
 # Setup auto-start PM2 saat boot
 sudo env PATH=$PATH:/usr/bin pm2 startup systemd -u ${CURRENT_USER} --hp ${USER_HOME} &> /dev/null || true
 pm2 save
+
+# 9. Setup Nginx & Auto Let's Encrypt SSL
+echo -e "\\n${BLUE}[9/9] Setup Nginx Reverse Proxy & SSL (Let's Encrypt)...${NC}"
+sudo apt-get install -y nginx certbot python3-certbot-nginx
+
+# Buat konfigurasi Nginx
+cat <<EOF_NGINX | sudo tee /etc/nginx/sites-available/${DASH_DOMAIN} > /dev/null
+server {
+    listen 80;
+    server_name ${DASH_DOMAIN};
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \\$host;
+        proxy_set_header X-Real-IP \\$remote_addr;
+        proxy_set_header X-Forwarded-For \\$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \\$scheme;
+    }
+}
+EOF_NGINX
+
+# Aktifkan site
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo ln -sf /etc/nginx/sites-available/${DASH_DOMAIN} /etc/nginx/sites-enabled/
+sudo systemctl restart nginx
+
+# Install SSL Let's Encrypt
+echo -e "\\n${YELLOW}Sedang memproses SSL Let's Encrypt untuk ${DASH_DOMAIN}...${NC}"
+sudo certbot --nginx -d ${DASH_DOMAIN} --non-interactive --agree-tos --register-unsafely-without-email || true
+echo -e "${GREEN}✔ Setup Nginx dan SSL selesai.${NC}"
 
 echo -e "\\n${GREEN}=====================================================${NC}"
 echo -e "${GREEN}🎉 INSTALASI Standalone NOC Redaman Selesai! 🎉${NC}"
