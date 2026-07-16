@@ -124,18 +124,13 @@ EOF
 echo -e "${GREEN}✔ config.json berhasil dibuat.${NC}"
 
 # 4. Update Sistem & Install Paket Dasar
-echo -e "\\n${BLUE}[4/8] Mengupdate sistem & menginstal Python, Pip, Virtualenv, SQLite3...${NC}"
+echo -e "\\n${BLUE}[1/8] Instalasi dependensi sistem (Python3, pip, Node.js)...${NC}"
 sudo apt-get update -y
-sudo apt-get install -y python3-pip python3-venv sqlite3 build-essential curl
+sudo apt-get install -y python3 python3-pip python3-venv sqlite3 curl
 
-# 5. Install Node.js v20
-echo -e "\\n${BLUE}[5/8] Menginstal Node.js v20...${NC}"
-if ! command -v node &> /dev/null; then
-    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-    sudo apt-get install -y nodejs
-else
-    echo -e "${GREEN}✔ Node.js sudah terinstal: $(node -v)${NC}"
-fi
+# Pastikan Node.js 20.x terpasang (upgrade otomatis jika versi lama)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
 
 # 6. Setup Virtual Environment Python & Install Requirements
 echo -e "\\n${BLUE}[6/8] Setup virtualenv Python & install library...${NC}"

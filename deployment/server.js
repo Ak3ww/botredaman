@@ -7,7 +7,7 @@ const https   = require('https');
 const { RouterOSClient } = require('routeros-client');
 
 const app    = express();
-const PORT   = process.env.PORT || 8000;
+const PORT   = 8000;
 const DB_FILE = path.join(__dirname, 'redaman.db');
 
 app.use(cors());
