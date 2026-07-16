@@ -82,7 +82,7 @@ def add_olt(name, ip_port, brand, community='public'):
 if __name__ == '__main__':
     init_db()
     # Otomatis isi kembali OLT default
-    add_olt('HSGQ-G02ID', '103.157.79.178:1611', 'HSGQ', 'public')
-    add_olt('VSOL-GPON', '192.168.30.6:161', 'VSOL', 'public')
-    add_olt('VSOL-1600GT', '192.168.30.7:1615', 'VSOL', 'public')
+    add_olt('OLT 1 (HSGQ)', '103.157.79.178:1612', 'HSGQ', 'public')
+    add_olt('OLT 2 (VSOL-GPON)', '103.157.79.178:1613', 'VSOL-GPON', 'public')
+    add_olt('OLT 3 (VSOL-1600GT)', '103.157.79.178:1614', 'VSOL-1600GT', 'public')
     print("Database SQLite dengan Identitas Pelanggan berhasil dibuat!")
