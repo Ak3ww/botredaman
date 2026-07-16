@@ -22,7 +22,7 @@ import {
 
 import MikrotikTab from './MikrotikTab';
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = '/api';
 const COLORS = {
   NORMAL: '#10b981',   // Emerald 500
   WARNING: '#f59e0b',  // Amber 500

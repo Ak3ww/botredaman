@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Server, Activity, WifiOff, RefreshCw, CheckCircle } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = '/api';
 
 function Card({ children, className = "" }: { children: React.ReactNode, className?: string }) {
   return (
