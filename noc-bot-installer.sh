@@ -3923,8 +3923,7 @@ conn.execute('''CREATE TABLE IF NOT EXISTS olts (
 )''')
 if conn.execute('SELECT count(*) FROM olts').fetchone()[0] == 0:
     conn.executemany('INSERT INTO olts (name, ip_port, brand, community) VALUES (?,?,?,?)', [
-        ('GGCLINK-01', '192.168.30.3:8001', 'GGCLINK', 'public'),
-        ('GGCLINK-02', '192.168.30.5:8002', 'GGCLINK', 'public'),
+        ('VSOL-1600GT', '192.168.30.7:1615', 'VSOL', 'public'),
         ('HSGQ-G02ID', '192.168.30.4:161', 'HSGQ', 'public'),
         ('VSOL-GPON', '192.168.30.6:161', 'VSOL', 'public')
     ])

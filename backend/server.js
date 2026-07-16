@@ -4,6 +4,7 @@ const sqlite3 = require('sqlite3').verbose();
 const path    = require('path');
 const fs      = require('fs');
 const https   = require('https');
+const { RouterOSClient } = require('routeros-client');
 
 const app    = express();
 const PORT   = process.env.PORT || 8000;
@@ -251,11 +252,63 @@ app.get('/api/stats/events', (req, res) => {
 
 
 
+// ── GET /api/mikrotik/non-active ─────────────────────────────────────────
+app.get('/api/mikrotik/non-active', async (req, res) => {
+    try {
+        const client = new RouterOSClient({
+            host: '103.157.79.178',
+            user: 'billinghub.id',
+            password: '@eugine0909@',
+            port: 8520,
+            keepalive: true
+        });
+
+        const conn = await client.connect();
+        
+        // Get all PPP secrets
+        const secretsMenu = conn.menu('/ppp/secret');
+        const secrets = await secretsMenu.get();
+        
+        // Get active PPP connections
+        const activeMenu = conn.menu('/ppp/active');
+        const active = await activeMenu.get();
+        
+        client.close();
+        
+        // Create a set of active usernames
+        const activeUsers = new Set(active.map(a => a.name));
+        
+        // Find secrets that are not in active connections
+        const nonActive = secrets.filter(s => !activeUsers.has(s.name));
+        
+        res.json({
+            total_secrets: secrets.length,
+            total_active: active.length,
+            total_non_active: nonActive.length,
+            non_active_list: nonActive.map(s => ({
+                id: s['.id'],
+                name: s.name,
+                service: s.service,
+                profile: s.profile,
+                last_logged_out: s['last-logged-out'] || '-',
+                last_caller_id: s['last-caller-id'] || '-',
+                last_disconnect_reason: s['last-disconnect-reason'] || '-',
+                comment: s.comment || '-',
+                disabled: s.disabled === 'true'
+            }))
+        });
+    } catch (err) {
+        console.error('Mikrotik API Error:', err);
+        res.status(500).json({ error: 'Gagal terhubung ke Mikrotik API: ' + err.message        });
+    }
+});
+
 // ── SPA fallback ───────────────────────────────────────────────────────────
-app.use((req, res) => {
+// All other requests -> Vite index.html
+app.get(/(.*)/, (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Dashboard server berjalan di http://0.0.0.0:${PORT}`);
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });

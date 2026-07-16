@@ -20,9 +20,9 @@ import {
   Activity
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000/api';
+import MikrotikTab from './MikrotikTab';
 
-// Shadcn style theme colors (using Tailwind CSS 4 slate color tokens)
+const API_BASE = 'http://localhost:8000/api';
 const COLORS = {
   NORMAL: '#10b981',   // Emerald 500
   WARNING: '#f59e0b',  // Amber 500
@@ -95,7 +95,7 @@ export default function App() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'DATABASE' | 'STATS'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'DATABASE' | 'STATS' | 'MIKROTIK'>('OVERVIEW');
   const [trafficStats, setTrafficStats] = useState<any>({
     today: { total_download: 0, total_upload: 0 },
     top_spenders: []
@@ -416,6 +416,17 @@ export default function App() {
             >
               <BarChart3 className="w-4 h-4 mr-2.5 text-indigo-400" /> Analisis & Statistik
             </button>
+            
+            <button 
+              onClick={() => setActiveTab('MIKROTIK')} 
+              className={`w-full flex items-center px-3 py-2 rounded-lg font-medium text-xs uppercase tracking-wider transition-all duration-150 ${
+                activeTab === 'MIKROTIK' 
+                  ? 'bg-slate-800 text-slate-100 shadow-sm border border-slate-700/60' 
+                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+              }`}
+            >
+              <Activity className="w-4 h-4 mr-2.5 text-indigo-400" /> Mikrotik Offline
+            </button>
           </div>
 
           <div className="space-y-1">
@@ -482,7 +493,7 @@ export default function App() {
           <div className="flex items-center text-slate-400">
             <Menu className="w-5 h-5 mr-4 cursor-pointer md:hidden text-slate-200" />
             <h1 className="text-xs font-black tracking-widest text-slate-400 uppercase">
-              {activeTab === 'OVERVIEW' ? 'Ringkasan Ekosistem NOC' : activeTab === 'DATABASE' ? 'Live Database Log' : 'Analisis & Statistik NOC'}
+              {activeTab === 'OVERVIEW' ? 'Ringkasan Ekosistem NOC' : activeTab === 'DATABASE' ? 'Live Database Log' : activeTab === 'MIKROTIK' ? 'Mikrotik Monitor' : 'Analisis & Statistik NOC'}
             </h1>
           </div>
           <div className="flex items-center space-x-4">
@@ -1004,7 +1015,7 @@ export default function App() {
                   </div>
                 </CardContent>
               </Card>
-            ) : (
+            ) : activeTab === 'STATS' ? (
               /* STATS Tab: Analisis & Statistik NOC */
               <div className="space-y-8 animate-in fade-in duration-200">
                 {/* Traffic Summary Cards */}
@@ -1216,7 +1227,9 @@ export default function App() {
                   </CardContent>
                 </Card>
               </div>
-            )}
+            ) : activeTab === 'MIKROTIK' ? (
+              <MikrotikTab />
+            ) : null}
 
           </div>
 

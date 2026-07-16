@@ -1,0 +1,4 @@
+- [x] Analyze `is_currently_offline` logic in `collector.py`.
+- [x] Implement database fallback logic (Hysteresis) for VSOL.
+- [x] Implement database fallback logic for HSGQ.
+- [x] Restart collector bot to apply changes.

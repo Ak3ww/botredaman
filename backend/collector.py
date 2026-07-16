@@ -11,7 +11,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import json
 from pysnmp.hlapi import *
-from ggclink_scraper import pull_ggclink_data
 from mikrotik_client import get_mikrotik_data
 
 # ── Konfigurasi ──────────────────────────────────────────────────────────────
@@ -392,7 +391,11 @@ def sync_olt_name_cache(cursor, olt_id, ip, port, community, cfg):
                 (onu_id, olt_id, customer_name, sn, firmware_version, last_updated)
             VALUES (?, ?, ?, ?, ?, ?)
         ''', (onu_idx, olt_id, customer_name.strip(), sn, fw_ver, now_str))
-    print(f"  [Cache Sync] {len(name_data)} ONU diperbarui.")
+    
+    # Hapus ONU lama (stale) yang sudah tidak ada di OLT lagi (last_updated nya tertinggal)
+    cursor.execute('DELETE FROM onu_name_cache WHERE olt_id = ? AND last_updated != ?', (olt_id, now_str))
+    
+    print(f"  [Cache Sync] {len(name_data)} ONU diperbarui (ONU lama yang terhapus otomatis dibersihkan).")
 
 def needs_cache_sync(cursor, olt_id, max_age_sec=7200):
     row = cursor.execute(
@@ -625,7 +628,7 @@ def check_and_send_bulk_reminder(cursor):
     rows = cursor.execute('''
         SELECT s.customer_name, o.name, s.status, s.last_offline_reason,
                (SELECT a.rx_power FROM attenuations a
-                WHERE a.onu_id = s.onu_id AND a.olt_id = s.olt_id
+                WHERE a.onu_id = s.onu_id AND a.olt_id = s.olt_id AND a.rx_power IS NOT NULL
                 ORDER BY a.timestamp DESC LIMIT 1) as rx_power
         FROM alert_states s
         JOIN olts o ON s.olt_id = o.id
@@ -703,7 +706,7 @@ def _pull_data_and_alert_impl(conn):
     olts = cursor.execute('SELECT id, name, ip_port, brand, community FROM olts').fetchall()
 
     for olt_id, olt_name, ip_port, olt_brand, community in olts:
-        if olt_brand != "GGCLINK" and olt_brand not in OIDS:
+        if olt_brand not in OIDS:
             print(f"  Skip {olt_name}: Brand '{olt_brand}' tidak dikenal.")
             continue
 
@@ -719,116 +722,78 @@ def _pull_data_and_alert_impl(conn):
         offline_data = {}
         alive_data = {}
         
-        if olt_brand == "GGCLINK":
-            print(f"  [{olt_name}] Menarik data GGCLINK via HTTP API...")
-            if "8002" in str(port):
-                user, pwd = "root", "ggclink0lt"
-            elif "8001" in str(port):
-                user, pwd = "root", "#eugine0909"
-            else:
-                user, pwd = "root", "admin"
-                
-            rx_data, up_time_data, down_time_data, offline_data, alive_data, status_data, ggclink_onus = pull_ggclink_data(ip, port, user, pwd)
-            
-            if rx_data is None and up_time_data is None:
-                print(f"  [WARN] Gagal menarik data dari {olt_name}. Siklus ini dilewati.")
-                continue
+        cfg = OIDS[olt_brand]
+        if not cfg.get("rx"):
+            print(f"  Skip {olt_name}: OID rx belum diset.")
+            continue
 
-            print(f"  [{olt_name}] Data diterima dari API GGCLINK.")
-            
-            # Sync cache
-            cached = cursor.execute('SELECT onu_id, customer_name FROM onu_name_cache WHERE olt_id = ?', (olt_id,)).fetchall()
-            all_onus = {r[0]: r[1] for r in cached}
-            
-            for onu_idx, meta in ggclink_onus.items():
-                customer = meta['customer']
-                cached_name = all_onus.get(onu_idx)
-                if not cached_name or cached_name != customer:
-                    cursor.execute(
-                        'INSERT OR REPLACE INTO onu_name_cache (onu_id, olt_id, customer_name, sn, firmware_version, last_updated) VALUES (?,?,?,?,?,?)',
-                        (onu_idx, olt_id, customer, meta['sn'], meta['version'], datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-                    )
-                    all_onus[onu_idx] = customer
-            
-            # Hapus ONU yang sudah tidak ada di OLT dari cache (Stale Cache Invalidation)
-            # DINONAKTIFKAN: karena OLT sering tidak memunculkan ONU yang offline, 
-            # menyebabkan penghapusan dan re-insert berulang (flapping alarm).
-            if ggclink_onus:
-                pass
-                    
+        # ── Sync cache nama/SN/firmware (hanya jika perlu) ───────────────────
+        if needs_cache_sync(cursor, olt_id):
+            sync_olt_name_cache(cursor, olt_id, ip, port, community, cfg)
+            conn.commit()
+
+        # ── Tarik rx_power LANGSUNG dari OLT (real-time, bukan cache) ────────
+        rx_data = get_snmp_walk(ip, port, community, cfg["rx"], version=cfg["vsnmp"])
+        
+        # Tarik data status, registrasi, alive time, dan alasan offline
+        up_time_data = get_snmp_walk(ip, port, community, cfg["uptime"], version=cfg["vsnmp"])
+        down_time_data = get_snmp_walk(ip, port, community, cfg["downtime"], version=cfg["vsnmp"])
+        offline_data = get_snmp_walk(ip, port, community, cfg["offline"], version=cfg["vsnmp"])
+        alive_data = get_snmp_walk(ip, port, community, cfg["alive"], version=cfg["vsnmp"])
+        
+        if olt_brand == "HSGQ":
+            status_data = get_snmp_walk(ip, port, community, cfg["status"], version=cfg["vsnmp"])
         else:
-            cfg = OIDS[olt_brand]
-            if not cfg.get("rx"):
-                print(f"  Skip {olt_name}: OID rx belum diset.")
-                continue
+            status_data = {}
+            
+        # Hapus ONU yang sudah tidak ada di OLT dari cache (Stale Cache Invalidation)
+        # DINONAKTIFKAN: Mencegah spam OFFLINE untuk ONU yang tidak terdeteksi sementara
+        current_snmp_ids = set()
+        for d in [rx_data, up_time_data, down_time_data, offline_data, alive_data, status_data]:
+            if d:
+                current_snmp_ids.update(d.keys())
 
-            # ── Sync cache nama/SN/firmware (hanya jika perlu) ───────────────────
-            if needs_cache_sync(cursor, olt_id):
+        # Jika data fundamental (uptime / rx) gagal ditarik sama sekali, skip OLT ini di siklus ini
+        if not rx_data and not up_time_data:
+            print(f"  [WARN] Gagal menarik data dari {olt_name}. Siklus ini dilewati.")
+            continue
+
+        print(f"  [{olt_name}] Data diterima dari SNMP.")
+
+        # ── Ambil semua ONU dari cache sebagai daftar master ─────────────────
+        cached = cursor.execute(
+            'SELECT onu_id, customer_name FROM onu_name_cache WHERE olt_id = ?', (olt_id,)
+        ).fetchall()
+        all_onus = {r[0]: r[1] for r in cached}
+
+        # Gabungkan keys dari semua data SNMP yang berhasil di-pull
+        keys_to_process = current_snmp_ids
+
+        # Jika ada ONU baru yang belum masuk cache, paksa sinkronisasi cache!
+        missing_onus = [k for k in keys_to_process if k not in all_onus]
+        if missing_onus:
+            print(f"  [Cache Sync] Ditemukan {len(missing_onus)} ONU baru di {olt_name}. Memaksa sinkronisasi nama...")
+            try:
                 sync_olt_name_cache(cursor, olt_id, ip, port, community, cfg)
                 conn.commit()
+                # Reload cache
+                cached = cursor.execute('SELECT onu_id, customer_name FROM onu_name_cache WHERE olt_id = ?', (olt_id,)).fetchall()
+                all_onus = {r[0]: r[1] for r in cached}
+            except Exception as e:
+                print(f"  [Error] Gagal sinkronisasi nama ONU baru: {e}")
 
-            # ── Tarik rx_power LANGSUNG dari OLT (real-time, bukan cache) ────────
-            rx_data = get_snmp_walk(ip, port, community, cfg["rx"], version=cfg["vsnmp"])
-            
-            # Tarik data status, registrasi, alive time, dan alasan offline
-            up_time_data = get_snmp_walk(ip, port, community, cfg["uptime"], version=cfg["vsnmp"])
-            down_time_data = get_snmp_walk(ip, port, community, cfg["downtime"], version=cfg["vsnmp"])
-            offline_data = get_snmp_walk(ip, port, community, cfg["offline"], version=cfg["vsnmp"])
-            alive_data = get_snmp_walk(ip, port, community, cfg["alive"], version=cfg["vsnmp"])
-            
-            if olt_brand == "HSGQ":
-                status_data = get_snmp_walk(ip, port, community, cfg["status"], version=cfg["vsnmp"])
-            else:
-                status_data = {}
-                
-            # Hapus ONU yang sudah tidak ada di OLT dari cache (Stale Cache Invalidation)
-            # DINONAKTIFKAN: Mencegah spam OFFLINE untuk ONU yang tidak terdeteksi sementara
-            current_snmp_ids = set()
-            for d in [rx_data, up_time_data, down_time_data, offline_data, alive_data, status_data]:
-                if d:
-                    current_snmp_ids.update(d.keys())
-
-            # Jika data fundamental (uptime / rx) gagal ditarik sama sekali, skip OLT ini di siklus ini
-            if not rx_data and not up_time_data:
-                print(f"  [WARN] Gagal menarik data dari {olt_name}. Siklus ini dilewati.")
-                continue
-
-            print(f"  [{olt_name}] Data diterima dari SNMP.")
-
-            # ── Ambil semua ONU dari cache sebagai daftar master ─────────────────
-            cached = cursor.execute(
-                'SELECT onu_id, customer_name FROM onu_name_cache WHERE olt_id = ?', (olt_id,)
-            ).fetchall()
-            all_onus = {r[0]: r[1] for r in cached}
-
-            # Gabungkan keys dari semua data SNMP yang berhasil di-pull
-            keys_to_process = current_snmp_ids
-
-            # Jika ada ONU baru yang belum masuk cache, paksa sinkronisasi cache!
-            missing_onus = [k for k in keys_to_process if k not in all_onus]
-            if missing_onus:
-                print(f"  [Cache Sync] Ditemukan {len(missing_onus)} ONU baru di {olt_name}. Memaksa sinkronisasi nama...")
-                try:
-                    sync_olt_name_cache(cursor, olt_id, ip, port, community, cfg)
-                    conn.commit()
-                    # Reload cache
-                    cached = cursor.execute('SELECT onu_id, customer_name FROM onu_name_cache WHERE olt_id = ?', (olt_id,)).fetchall()
-                    all_onus = {r[0]: r[1] for r in cached}
-                except Exception as e:
-                    print(f"  [Error] Gagal sinkronisasi nama ONU baru: {e}")
-
-            # ONU baru yang belum di cache — GET langsung
-            for onu_idx in keys_to_process:
-                if onu_idx not in all_onus:
-                    name_val = get_snmp_get(ip, port, community, f"{cfg['name']}.{onu_idx}", version=cfg["vsnmp"])
-                    sn_val   = get_snmp_get(ip, port, community, f"{cfg['sn']}.{onu_idx}",   version=cfg["vsnmp"])
-                    ver_val  = get_snmp_get(ip, port, community, f"{cfg['version']}.{onu_idx}", version=cfg["vsnmp"])
-                    customer = (name_val or f"ONU-{onu_idx}").strip()
-                    cursor.execute(
-                        'INSERT OR REPLACE INTO onu_name_cache (onu_id, olt_id, customer_name, sn, firmware_version, last_updated) VALUES (?,?,?,?,?,?)',
-                        (onu_idx, olt_id, customer, sn_val or "", ver_val or "", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-                    )
-                    all_onus[onu_idx] = customer
+        # ONU baru yang belum di cache — GET langsung
+        for onu_idx in keys_to_process:
+            if onu_idx not in all_onus:
+                name_val = get_snmp_get(ip, port, community, f"{cfg['name']}.{onu_idx}", version=cfg["vsnmp"])
+                sn_val   = get_snmp_get(ip, port, community, f"{cfg['sn']}.{onu_idx}",   version=cfg["vsnmp"])
+                ver_val  = get_snmp_get(ip, port, community, f"{cfg['version']}.{onu_idx}", version=cfg["vsnmp"])
+                customer = (name_val or f"ONU-{onu_idx}").strip()
+                cursor.execute(
+                    'INSERT OR REPLACE INTO onu_name_cache (onu_id, olt_id, customer_name, sn, firmware_version, last_updated) VALUES (?,?,?,?,?,?)',
+                    (onu_idx, olt_id, customer, sn_val or "", ver_val or "", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                )
+                all_onus[onu_idx] = customer
 
         # ── Proses setiap ONU ─────────────────────────────────────────────────
         for onu_idx, customer in all_onus.items():
@@ -891,40 +856,44 @@ def _pull_data_and_alert_impl(conn):
 
                 # Tentukan online/offline status secara akurat (berdasarkan OLT)
                 is_currently_offline = False
-                if olt_brand == "GGCLINK":
+                
+                # Fungsi helper untuk fallback ke status database lama jika data OLT kosong (Packet Loss)
+                def get_previous_offline_state():
+                    state_row = cursor.execute('SELECT status FROM alert_states WHERE onu_id = ? AND olt_id = ?', (onu_idx, olt_id)).fetchone()
+                    return (state_row[0] == 'OFFLINE') if state_row else False
+
+                if olt_brand == "HSGQ":
                     status_val = status_data.get(onu_idx)
                     if status_val is not None:
-                        is_currently_offline = (status_val != '1')
+                        is_currently_offline = (str(status_val).strip() != '1')
                     else:
-                        # Prevent false toggling if API drops data but OLT caches rx_power
-                        state_row = cursor.execute('SELECT status FROM alert_states WHERE onu_id = ? AND olt_id = ?', (onu_idx, olt_id)).fetchone()
-                        old_stat = state_row[0] if state_row else 'NORMAL'
-                        is_currently_offline = (old_stat == 'OFFLINE')
-                elif olt_brand == "HSGQ":
-                    status_val = status_data.get(onu_idx)
-                    if status_val is not None:
-                        is_currently_offline = (status_val.strip() != '1')
-                    else:
-                        is_currently_offline = (dbm is None)
+                        if dbm is not None:
+                            is_currently_offline = False
+                        else:
+                            is_currently_offline = get_previous_offline_state()
                     
-                    # Format alive time
                     if alive and alive != "0":
                         alive = format_hsgq_alive(alive)
                     else:
                         alive = "-"
+
                 elif olt_brand == "VSOL":
-                    if dbm is None:
-                        is_currently_offline = True
-                    elif last_up and last_down and last_up != "N/A" and last_down != "N/A":
-                        is_currently_offline = (last_down > last_up)
-                    elif last_up == "N/A" or alive in ("0", "00:00:00", "0 00:00:00"):
-                        is_currently_offline = True
+                    valid_up = last_up and str(last_up) not in ("N/A", "0000-00-00 00:00:00", "")
+                    valid_down = last_down and str(last_down) not in ("N/A", "0000-00-00 00:00:00", "")
+                    
+                    if valid_up and valid_down:
+                        # Jika kedua timestamp valid, percayai timestamp OLT (Paling Akurat)
+                        is_currently_offline = (str(last_down) > str(last_up))
+                    else:
+                        # Jika timestamp tidak lengkap, cek dbm
+                        if dbm is not None:
+                            is_currently_offline = False
+                        else:
+                            is_currently_offline = get_previous_offline_state()
 
                 # ── Cross-Check Mikrotik (Anti-False Offline) ───────────────────
-                # Jika OLT bilang offline, tapi di Mikrotik sesi PPPoE masih berjalan, BATALKAN status offline
-                if is_currently_offline and pppoe_user and pppoe_user in active_usernames:
-                    print(f"  [Cross-Check] False Alarm dicegah! ONU {onu_idx} ({customer}) dilaporkan OFFLINE oleh OLT, tapi trafik Mikrotik MASIH AKTIF.")
-                    is_currently_offline = False
+                # Dihapus karena Hysteresis sudah cukup kuat dan user meminta status OLT menjadi sumber kebenaran (Source of Truth)
+                # agar Dashboard sinkron 100% dengan OLT.
 
                 # Jika offline, gunakan reason OID. Jika online, set reason ke None atau simpan historis
                 if is_currently_offline:

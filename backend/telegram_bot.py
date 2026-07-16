@@ -219,48 +219,6 @@ def do_live_check(chat_id, onu_id, olt_id, cust_name):
     ip   = ip_port.rsplit(':', 1)[0]
     port = int(ip_port.rsplit(':', 1)[1])
 
-    if olt_type == "GGCLINK":
-        from ggclink_scraper import pull_ggclink_data
-        
-        if "8002" in str(port):
-            user, pwd = "root", "ggclink0lt"
-        elif "8001" in str(port):
-            user, pwd = "root", "#eugine0909"
-        else:
-            user, pwd = "root", "admin"
-            
-        rx_data, up_time_data, down_time_data, offline_data, alive_data, status_data, ggclink_onus = pull_ggclink_data(ip, port, user, pwd)
-        
-        if rx_data is None and up_time_data is None:
-            send_message(chat_id, f"❌ <b>GAGAL (Timeout)</b>\nOLT GGCLINK tidak merespon API.")
-            return
-            
-        onu_int = int(onu_id)
-        val_nm = ggclink_onus.get(onu_int, {}).get('customer', cust_name)
-        status_val = status_data.get(onu_int)
-        
-        dbm = rx_data.get(onu_int)
-        is_online = (status_val == '1')
-        
-        if not is_online:
-            reason = offline_data.get(onu_int, "Unknown")
-            send_message(chat_id,
-                f"⚠️ ONU <code>{onu_id}</code> (<b>{val_nm}</b>) sedang <b>OFFLINE</b>.\n"
-                f"🔍 Alasan / Last Trouble: <b>{reason}</b>")
-        else:
-            bar = rx_bar(dbm / 100.0 if dbm is not None else None)
-            msg = (
-                f"⚡ <b>CEK LIVE ONU</b>\n"
-                f"{'─'*28}\n"
-                f"👤 Nama    : <b>{val_nm}</b>\n"
-                f"🆔 ONU ID  : <code>{onu_id}</code>\n"
-                f"🖥 OLT     : <b>{olt_name}</b>\n"
-                f"📶 Redaman : {bar}\n"
-                f"{'─'*28}\n"
-                f"🕐 Update  : <i>Real-time (detik ini)</i>"
-            )
-            send_message(chat_id, msg)
-        return
 
     try:
         from pysnmp.hlapi import getCmd, SnmpEngine, CommunityData, UdpTransportTarget, ContextData, ObjectType, ObjectIdentity
@@ -393,6 +351,81 @@ def handle_command(chat_id, text, message_id=None):
     # ── /kritis ───────────────────────────────────────────────────
     elif command == "/kritis":
         send_or_edit_kritis(chat_id, page=1)
+
+    # ── /olt ──────────────────────────────────────────────────────
+    elif command == "/olt":
+        if len(parts) < 2:
+            msg = (
+                "⚠️ <b>Perintah /olt Tidak Lengkap</b>\n\n"
+                "Gunakan format: <code>/olt [nama_olt]</code>\n"
+                "Contoh: <code>/olt vsol</code> atau <code>/olt hsgq</code> \n\n"
+                "<i>Menampilkan semua pelanggan di OLT tersebut beserta redamannya.</i>"
+            )
+            send_message(chat_id, msg)
+            return
+            
+        search_term = " ".join(parts[1:]).lower()
+        conn = get_db_connection()
+        try:
+            # Cari OLT berdasarkan nama (case-insensitive)
+            olts = conn.execute("SELECT id, name FROM olts WHERE lower(name) LIKE ?", ('%' + search_term + '%',)).fetchall()
+            if not olts:
+                send_message(chat_id, f"❌ OLT yang mengandung kata '<b>{search_term}</b>' tidak ditemukan di database.")
+                return
+                
+            olt_id = olts[0]['id']
+            olt_name = olts[0]['name']
+            
+            # Ambil semua data pelanggan dari OLT tersebut beserta redaman valid terakhir
+            results = conn.execute('''
+                SELECT c.customer_name, c.onu_id, a.status,
+                       (SELECT att.rx_power FROM attenuations att
+                        WHERE att.onu_id = c.onu_id AND att.olt_id = c.olt_id AND att.rx_power IS NOT NULL
+                        ORDER BY att.timestamp DESC LIMIT 1) as rx_power
+                FROM onu_name_cache c
+                LEFT JOIN alert_states a ON c.onu_id = a.onu_id AND c.olt_id = a.olt_id
+                WHERE c.olt_id = ?
+                ORDER BY 
+                    CASE WHEN a.status = 'OFFLINE' THEN 4
+                         WHEN a.status = 'CRITICAL' THEN 1 
+                         WHEN a.status = 'WARNING' THEN 2 
+                         ELSE 3 END,
+                    rx_power ASC
+            ''', (olt_id,)).fetchall()
+            
+            if results:
+                total = len(results)
+                msg = f"🖥 <b>Daftar Pelanggan OLT: {olt_name}</b>\n"
+                msg += f"<i>Total: {total} ONU</i>\n{'─'*30}\n\n"
+                
+                # Telegram punya limit teks, kita batasi 50 row
+                display_limit = min(total, 50)
+                
+                for row in results[:display_limit]:
+                    name = (row['customer_name'] or "?")[:20]
+                    rx = row['rx_power']
+                    status = row['status'] or "NORMAL"
+                    
+                    if status == "OFFLINE":
+                        msg += f"🔌 {name} | OFFLINE\n"
+                    elif status == "CRITICAL":
+                        msg += f"🔴 {name} | {rx} dBm\n"
+                    elif status == "WARNING":
+                        msg += f"🟡 {name} | {rx} dBm\n"
+                    else:
+                        msg += f"✅ {name} | {rx} dBm\n"
+                        
+                if total > display_limit:
+                    msg += f"\n<i>...dan {total - display_limit} lainnya. Buka dashboard untuk full detail.</i>"
+                    
+                buttons = [
+                    [{"text": f"🖥 Buka Dashboard ({olt_name})", "url": f"{DASHBOARD_URL}/?olt={olt_id}"}]
+                ]
+                send_message_with_buttons(chat_id, msg, buttons)
+            else:
+                send_message(chat_id, f"ℹ️ Belum ada data pelanggan untuk OLT <b>{olt_name}</b>.")
+        finally:
+            conn.close()
 
     # ── /cari ─────────────────────────────────────────────────────
     elif command == "/cari":
@@ -703,7 +736,7 @@ def bot_handle_callback(call):
     handle_callback(callback_query)
 
 def main():
-    print("✅ Bot NOC Redaman - Listener aktif (Powered by Telebot)...")
+    print("Bot NOC Redaman - Listener aktif (Powered by Telebot)...")
     while True:
         try:
             bot.polling(none_stop=True, timeout=60, long_polling_timeout=60)

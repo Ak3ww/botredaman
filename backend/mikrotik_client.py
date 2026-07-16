@@ -170,7 +170,11 @@ class RouterOSApi:
 
     def close(self):
         if self.sock:
-            self.sock.close()
+            try:
+                self.sock.close()
+            except:
+                pass
+            self.sock = None
 
 # ── Mock Data Generator (Fallback) ───────────────────────────────────────────
 def get_mock_active_pppoe():
@@ -244,15 +248,15 @@ def get_mock_ppp_secrets():
 # ── API Utama Modul ───────────────────────────────────────────────────────────
 _persistent_api = None
 _rest_session = None
+_cache = {"time": 0, "active": [], "queues": {}, "secrets": {}}
+import time
 
 def get_mikrotik_data():
     """
     Fungsi utama untuk mengambil data active PPPoE dan simple queues.
     Menggunakan persistent connection untuk mengurangi spam log di Mikrotik.
-    Jika gagal atau disabled, otomatis mengembalikan mock data.
     """
-    global _rest_session
-    global _persistent_api
+    global _rest_session, _persistent_api
     cfg = load_config()
     enabled = cfg.get("mikrotik_enabled", False)
     host = cfg.get("mikrotik_host", "")
@@ -263,180 +267,82 @@ def get_mikrotik_data():
     use_ssl = cfg.get("mikrotik_use_ssl", False)
 
     if not enabled or not host or not username:
-        # Mock mode
         return get_mock_active_pppoe(), get_mock_queues_traffic(), get_mock_ppp_secrets()
 
+    # Use cache if less than 1 hour (3600 seconds) old to prevent login spam
+    if time.time() - _cache["time"] < 3600:
+        return _cache["active"], _cache["queues"], _cache["secrets"]
+
     try:
-        active_users = []
-        queues_traffic = {}
-        ppp_secrets = {}
+        active_users, queues_traffic, ppp_secrets = [], {}, {}
 
         if m_type == "rest":
-            # ── Mode REST API (RouterOS v7) ──────────────────────────────────
-            proto = "https" if use_ssl else "http"
-            url = f"{proto}://{host}:{port}/rest"
-            auth = (username, password)
-            
             if _rest_session is None:
                 _rest_session = requests.Session()
-                _rest_session.auth = auth
+                _rest_session.auth = (username, password)
             
-            # Get PPPoE Active
-            r1 = _rest_session.get(f"{url}/ppp/active", verify=False, timeout=4)
-            if r1.status_code == 200:
+            proto = "https" if use_ssl else "http"
+            url = f"{proto}://{host}:{port}/rest"
+            
+            # Health check simple
+            try:
+                r1 = _rest_session.get(f"{url}/ppp/active", verify=False, timeout=5)
+                r1.raise_for_status()
                 for item in r1.json():
-                    active_users.append({
-                        "name": item.get("name"),
-                        "address": item.get("address"),
-                        "uptime": item.get("uptime"),
-                        "mac-address": item.get("mac-address")
-                    })
-            
-            # Get Simple Queues
-            r2 = _rest_session.get(f"{url}/queue/simple", verify=False, timeout=4)
-            if r2.status_code == 200:
+                    active_users.append({"name": item.get("name"), "address": item.get("address"), "uptime": item.get("uptime"), "mac-address": item.get("mac-address")})
+                
+                r2 = _rest_session.get(f"{url}/queue/simple", verify=False, timeout=5)
                 for item in r2.json():
                     q_name = item.get("name", "")
-                    if q_name.startswith("<pppoe-") and q_name.endswith(">"):
-                        q_name = q_name[7:-1]
-                    
-                    # ROS v7 REST mengembalikan traffic bytes dalam string format 'tx/rx' atau bytes terpisah
-                    # Format byte di Simple Queue ROS v7 biasanya ada di property "bytes" dalam bentuk "tx/rx"
-                    bytes_str = item.get("bytes", "0/0")
-                    up_b, down_b = 0, 0
-                    if "/" in bytes_str:
-                        parts = bytes_str.split("/")
-                        try:
-                            up_b = int(parts[0])
-                            down_b = int(parts[1])
-                        except:
-                            pass
-                    
-                    # Live rate biasanya ada di "rate" 'tx/rx'
-                    rate_str = item.get("rate", "0/0")
-                    up_r, down_r = 0, 0
-                    if "/" in rate_str:
-                        parts = rate_str.split("/")
-                        try:
-                            up_r = int(parts[0])
-                            down_r = int(parts[1])
-                        except:
-                            pass
-
-                    queues_traffic[q_name] = {
-                        "name": q_name,
-                        "upload_bytes": up_b,
-                        "download_bytes": down_b,
-                        "upload_rate": up_r,
-                        "download_rate": down_r
-                    }
-                    
-            # Get PPPoE Secrets
-            r3 = _rest_session.get(f"{url}/ppp/secret", verify=False, timeout=4)
-            if r3.status_code == 200:
-                for item in r3.json():
-                    comment = item.get("comment", "")
-                    name = item.get("name", "")
-                    if comment and name:
-                        ppp_secrets[comment.strip()] = name
-        else:
-            # ── Mode Socket API (RouterOS v6/v7) ─────────────────────────────
-            try:
-                if _persistent_api is None:
-                    _persistent_api = RouterOSApi(host, port, username, password, use_ssl)
-                    _persistent_api.connect()
+                    if q_name.startswith("<pppoe-") and q_name.endswith(">"): q_name = q_name[7:-1]
+                    bytes_str = item.get("bytes", "0/0").split("/"); rate_str = item.get("rate", "0/0").split("/")
+                    queues_traffic[q_name] = {"name": q_name, "upload_bytes": int(bytes_str[0]), "download_bytes": int(bytes_str[1]), "upload_rate": int(rate_str[0]), "download_rate": int(rate_str[1])}
                 
-                # Get PPPoE Active
+                r3 = _rest_session.get(f"{url}/ppp/secret", verify=False, timeout=5)
+                for item in r3.json():
+                    if item.get("comment") and item.get("name"): ppp_secrets[item["comment"].strip()] = item["name"]
+            except Exception:
+                _rest_session = None
+                raise
+        else:
+            if _persistent_api is None or _persistent_api.sock is None:
+                _persistent_api = RouterOSApi(host, port, username, password, use_ssl)
+                _persistent_api.connect()
+            
+            try:
                 active_reply = _persistent_api.talk(["/ppp/active/print"])
                 for sentence in active_reply:
                     if sentence[0] == "!re":
-                        item = {}
-                        for word in sentence[1:]:
-                            if word.startswith("="):
-                                parts = word[1:].split("=", 1)
-                                if len(parts) == 2:
-                                    item[parts[0]] = parts[1]
-                        active_users.append({
-                            "name": item.get("name"),
-                            "address": item.get("address"),
-                            "uptime": item.get("uptime"),
-                            "mac-address": item.get("mac-address")
-                        })
-            
-            # Get Simple Queues
+                        item = {w.split("=", 2)[1]: w.split("=", 2)[2] for w in sentence[1:] if w.startswith("=")}
+                        active_users.append({"name": item.get("name"), "address": item.get("address"), "uptime": item.get("uptime"), "mac-address": item.get("mac-address")})
+                
                 queues_reply = _persistent_api.talk(["/queue/simple/print"])
                 for sentence in queues_reply:
                     if sentence[0] == "!re":
-                        item = {}
-                        for word in sentence[1:]:
-                            if word.startswith("="):
-                                parts = word[1:].split("=", 1)
-                                if len(parts) == 2:
-                                    item[parts[0]] = parts[1]
-                        
+                        item = {w.split("=", 2)[1]: w.split("=", 2)[2] for w in sentence[1:] if w.startswith("=")}
                         q_name = item.get("name", "")
-                        if q_name.startswith("<pppoe-") and q_name.endswith(">"):
-                            q_name = q_name[7:-1]
-                            
-                        bytes_str = item.get("bytes", "0/0")
-                        up_b, down_b = 0, 0
-                        if "/" in bytes_str:
-                            parts = bytes_str.split("/")
-                            try:
-                                up_b = int(parts[0])
-                                down_b = int(parts[1])
-                            except:
-                                pass
-                        
-                        rate_str = item.get("rate", "0/0")
-                        up_r, down_r = 0, 0
-                        if "/" in rate_str:
-                            parts = rate_str.split("/")
-                            try:
-                                up_r = int(parts[0])
-                                down_r = int(parts[1])
-                            except:
-                                pass
-    
-                        queues_traffic[q_name] = {
-                            "name": q_name,
-                            "upload_bytes": up_b,
-                            "download_bytes": down_b,
-                            "upload_rate": up_r,
-                            "download_rate": down_r
-                        }
-                        
-                # Get PPPoE Secrets
+                        if q_name.startswith("<pppoe-") and q_name.endswith(">"): q_name = q_name[7:-1]
+                        b, r = item.get("bytes", "0/0").split("/"), item.get("rate", "0/0").split("/")
+                        queues_traffic[q_name] = {"name": q_name, "upload_bytes": int(b[0]), "download_bytes": int(b[1]), "upload_rate": int(r[0]), "download_rate": int(r[1])}
+                
                 secrets_reply = _persistent_api.talk(["/ppp/secret/print"])
                 for sentence in secrets_reply:
                     if sentence[0] == "!re":
-                        item = {}
-                        for word in sentence[1:]:
-                            if word.startswith("="):
-                                parts = word[1:].split("=", 1)
-                                if len(parts) == 2:
-                                    item[parts[0]] = parts[1]
-                        comment = item.get("comment", "")
-                        name = item.get("name", "")
-                        if comment and name:
-                            ppp_secrets[comment.strip()] = name
-            
-            except Exception as inner_e:
-                if _persistent_api:
-                    try:
-                        _persistent_api.close()
-                    except:
-                        pass
-                    _persistent_api = None
-                raise inner_e
+                        item = {w.split("=", 2)[1]: w.split("=", 2)[2] for w in sentence[1:] if w.startswith("=")}
+                        if item.get("comment") and item.get("name"): ppp_secrets[item["comment"].strip()] = item["name"]
+            except Exception:
+                _persistent_api.close()
+                _persistent_api = None
+                raise
+        
+        _cache["time"] = time.time()
+        _cache["active"] = active_users
+        _cache["queues"] = queues_traffic
+        _cache["secrets"] = ppp_secrets
         
         return active_users, queues_traffic, ppp_secrets
-
     except Exception as e:
-        print(f"[Mikrotik API] Gagal menghubungkan ke router {host}. Mengaktifkan mock fallback. Detail: {e}")
-        # Reset if exception occurs (REST could fail too)
-        _rest_session = None
-        
+        print(f"[Mikrotik API] Error: {e}. Falling back to mock.")
         return get_mock_active_pppoe(), get_mock_queues_traffic(), get_mock_ppp_secrets()
 
 if __name__ == "__main__":
