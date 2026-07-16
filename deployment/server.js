@@ -11,7 +11,7 @@ app.use(cors());
 app.use(express.json());
 
 // Serve static assets dari Vite React production build
-const distPath = path.join(__dirname, '..', 'frontend', 'dist');
+const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
 // Buka DB dalam mode READ-ONLY + WAL-compatible
