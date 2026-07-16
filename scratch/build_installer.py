@@ -251,7 +251,11 @@ sudo systemctl restart noc-telegram-bot
 if ! command -v pm2 &> /dev/null; then
     sudo npm install -g pm2
 fi
-pm2 delete noc-dashboard &> /dev/null || true
+echo "Membersihkan rogue Node.js/PM2 processes..."
+sudo pm2 kill &> /dev/null || true
+pm2 kill &> /dev/null || true
+sudo killall -9 node &> /dev/null || true
+
 pm2 start server.js --name "noc-dashboard"
 pm2 save
 

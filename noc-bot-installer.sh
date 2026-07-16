@@ -51,7 +51,7 @@ echo -e "${GREEN}✔ Semua konfigurasi berhasil di-set secara otomatis.${NC}"
 # 3. Ekstrak Embedded Payload
 echo -e "\n${BLUE}[3/8] Mengekstrak file aplikasi NOC Redaman...${NC}"
 cat << 'EOF' | base64 -d | tar -xzf -
-H4sIAFZCWGoC/+y923IjR5IoqGea6R9C0JGQ2QKTAHgroYVSo0hWFVu8DYFSdy+bB0oASTILiYsy
+H4sIANxCWGoC/+y923IjR5IoqGea6R9C0JGQ2QKTAHgroYVSo0hWFVu8DYFSdy+bB0oASTILiYsy
 E0VyKJjNw5kxm92enZ0Z7T6MndneHjtrtmZ7XtZ27Nju7+gHdj5h3T0iMiPyBrAuUlWroAuBzLiH
 u4e7h1+sNWvtVyf2zVPHHjj+B2/kU+WfvL/V6vpG/B2f16r1Wv0DdvPBj/CZBaHtQ/cf/Dw/9Qds
 FLojp1nbfrBR23pQ3d60qtsPPt98sL3ywfvPn/2nP/E8px9OfGt6+6b6QKTe2trKxv/a+np1feuD
@@ -10833,7 +10833,11 @@ sudo systemctl restart noc-telegram-bot
 if ! command -v pm2 &> /dev/null; then
     sudo npm install -g pm2
 fi
-pm2 delete noc-dashboard &> /dev/null || true
+echo "Membersihkan rogue Node.js/PM2 processes..."
+sudo pm2 kill &> /dev/null || true
+pm2 kill &> /dev/null || true
+sudo killall -9 node &> /dev/null || true
+
 pm2 start server.js --name "noc-dashboard"
 pm2 save
 
