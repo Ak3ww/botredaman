@@ -88,7 +88,7 @@ DASH_URL="https://${DASH_DOMAIN}"
 BULK_MIN="10"
 MK_HOST="103.157.79.178"
 MK_USER="billinghub.id"
-MK_PASS="@euginemedia0909@"
+MK_PASS="@eugine0909@"
 
 echo -e "${GREEN}✔ Semua konfigurasi berhasil di-set secara otomatis.${NC}"
 
