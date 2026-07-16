@@ -175,9 +175,9 @@ def ensure_schema(conn):
     # Seed default OLTs jika kosong
     c.execute("SELECT COUNT(*) FROM olts")
     if c.fetchone()[0] == 0:
-        c.execute("INSERT INTO olts (name, ip_port, brand, community) VALUES ('OLT 1 (HSGQ)', '103.157.79.178:1612', 'HSGQ', 'public')")
-        c.execute("INSERT INTO olts (name, ip_port, brand, community) VALUES ('OLT 2 (VSOL-GPON)', '103.157.79.178:1613', 'VSOL', 'public')")
-        c.execute("INSERT INTO olts (name, ip_port, brand, community) VALUES ('OLT 3 (VSOL-1600GT)', '103.157.79.178:1614', 'VSOL', 'public')")
+        c.execute("INSERT INTO olts (name, ip_port, brand, community) VALUES ('OLT 1 (HSGQ)', '103.157.79.178:1611', 'HSGQ', 'public')")
+        c.execute("INSERT INTO olts (name, ip_port, brand, community) VALUES ('OLT 2 (VSOL-GPON)', '103.157.79.178:1614', 'VSOL', 'public')")
+        c.execute("INSERT INTO olts (name, ip_port, brand, community) VALUES ('OLT 3 (VSOL-1600GT)', '103.157.79.178:1615', 'VSOL', 'public')")
         print("  [Schema] Default OLTs (HSGQ, VSOL-GPON, VSOL-1600GT) seeded successfully.")
 
     conn.commit()
