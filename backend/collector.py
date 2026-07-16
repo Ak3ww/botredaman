@@ -179,7 +179,9 @@ def ensure_schema(conn):
                   ('HSGQ-G02ID', '103.157.79.178:1611', 'HSGQ', 'public'))
         c.execute("INSERT INTO olts (name, ip_port, brand, community) VALUES (?, ?, ?, ?)",
                   ('VSOL-GPON', '192.168.30.6:161', 'VSOL', 'public'))
-        print("  [Schema] Default OLTs (HSGQ & VSOL) seeded successfully.")
+        c.execute("INSERT INTO olts (name, ip_port, brand, community) VALUES (?, ?, ?, ?)",
+                  ('VSOL-1600GT', '192.168.30.7:1615', 'VSOL', 'public'))
+        print("  [Schema] Default OLTs (HSGQ, VSOL-GPON, VSOL-1600GT) seeded successfully.")
 
     conn.commit()
 

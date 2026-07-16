@@ -77,30 +77,19 @@ echo -e "\\n${BLUE}[1/8] Mendapatkan IP Publik VPS...${NC}"
 PUBLIC_IP=$(curl -s --max-time 5 https://ifconfig.me || curl -s --max-time 5 ipinfo.io/ip || echo "IP_VPS_ANDA")
 echo -e "${GREEN}✔ Detected Public IP: ${PUBLIC_IP}${NC}"
 
-# 2. Interaktif Setup config.json
-echo -e "\\n${BLUE}[2/8] Setup Konfigurasi Token & Chat ID...${NC}"
-read -p "Masukkan Telegram Bot Token [8773632704:AAFschVyWAyGIwGyjU5mwt1xDlMs3I-NqGc]: " TELE_TOKEN < /dev/tty
-TELE_TOKEN=${TELE_TOKEN:-"8773632704:AAFschVyWAyGIwGyjU5mwt1xDlMs3I-NqGc"}
+# 2. Setup Konfigurasi Token & Chat ID secara Otomatis
+echo -e "\\n${BLUE}[2/9] Setup Konfigurasi Token, Mikrotik & Chat ID...${NC}"
 
-read -p "Masukkan Telegram Chat ID [298223450]: " TELE_CHAT_ID < /dev/tty
-TELE_CHAT_ID=${TELE_CHAT_ID:-"298223450"}
-
-read -p "Masukkan Domain Dashboard [noc.euginemediagroup.com]: " DASH_DOMAIN < /dev/tty
-DASH_DOMAIN=${DASH_DOMAIN:-"noc.euginemediagroup.com"}
+TELE_TOKEN="8773632704:AAFschVyWAyGIwGyjU5mwt1xDlMs3I-NqGc"
+TELE_CHAT_ID="298223450"
+DASH_DOMAIN="noc.euginemediagroup.com"
 DASH_URL="https://${DASH_DOMAIN}"
+BULK_MIN="10"
+MK_HOST="103.157.79.178"
+MK_USER="euginemediagroup"
+MK_PASS="@eugine0909@"
 
-read -p "Masukkan Interval Bulk Reminder (menit) [10]: " BULK_MIN < /dev/tty
-BULK_MIN=${BULK_MIN:-"10"}
-
-read -p "Masukkan Mikrotik IP/Host (Publik/VPN) [103.157.79.178]: " MK_HOST < /dev/tty
-MK_HOST=${MK_HOST:-"103.157.79.178"}
-
-read -p "Masukkan Mikrotik Username [admin]: " MK_USER < /dev/tty
-MK_USER=${MK_USER:-"admin"}
-
-read -s -p "Masukkan Mikrotik Password []: " MK_PASS < /dev/tty
-echo ""
-MK_PASS=${MK_PASS:-""}
+echo -e "${GREEN}✔ Semua konfigurasi berhasil di-set secara otomatis.${NC}"
 
 # 3. Ekstrak Embedded Payload
 echo -e "\\n${BLUE}[3/8] Mengekstrak file aplikasi NOC Redaman...${NC}"
@@ -175,9 +164,9 @@ conn.execute('''CREATE TABLE IF NOT EXISTS olts (
 )''')
 if conn.execute('SELECT count(*) FROM olts').fetchone()[0] == 0:
     conn.executemany('INSERT INTO olts (name, ip_port, brand, community) VALUES (?,?,?,?)', [
-        ('HSGQ-G02ID', '192.168.30.4:161', 'HSGQ', 'public'),
-        ('VSOL-GPON-1', '192.168.30.6:161', 'VSOL', 'public'),
-        ('VSOL-GPON-2', '192.168.30.7:161', 'VSOL', 'public')
+        ('HSGQ-G02ID', '103.157.79.178:1611', 'HSGQ', 'public'),
+        ('VSOL-GPON', '192.168.30.6:161', 'VSOL', 'public'),
+        ('VSOL-1600GT', '192.168.30.7:1615', 'VSOL', 'public')
     ])
 conn.commit()
 conn.close()
